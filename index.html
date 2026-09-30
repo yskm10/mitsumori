@@ -165,6 +165,42 @@ async function flush(){
  flushing=false;
  if(again){again=false;scheduleSync(100)}
 }
+
+function loadJs(u){return new Promise((ok,ng)=>{const x=document.createElement('script');x.src=u;x.onload=ok;x.onerror=()=>ng(new Error('読み込み失敗'));document.head.appendChild(x)})}
+async function makePdf(e){
+ const btn=$root.querySelector('[data-a="pdf"]');const old=btn.textContent;btn.disabled=true;btn.textContent='作成中…';
+ let box;
+ try{
+  if(!window.html2canvas)await loadJs('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  if(!window.jspdf)await loadJs('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  box=document.createElement('div');
+  box.style.cssText='position:absolute;left:-10000px;top:0;width:210mm;background:#fff';
+  box.innerHTML='<style>.pdfcap .page{box-sizing:border-box;width:210mm;min-height:297mm;margin:0;box-shadow:none;padding:11mm 14mm}.pdfcap .page tr{page-break-inside:avoid}.pdfcap .page tfoot{display:table-row-group}</style><div class="pdfcap">'+[...$root.querySelectorAll('.page')].map(x=>x.outerHTML).join('')+'</div>';
+  document.body.appendChild(box);
+  if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+  const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+  let first=true;
+  for(const pg of box.querySelectorAll('.page')){
+   const cv=await window.html2canvas(pg,{scale:2,backgroundColor:'#ffffff',useCORS:true});
+   const ph=Math.floor(cv.width*297/210);
+   for(let y=0;y<cv.height-2||first;y+=ph){
+    const h=Math.min(ph,cv.height-y);
+    const c2=document.createElement('canvas');c2.width=cv.width;c2.height=ph;
+    const g=c2.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c2.width,c2.height);g.drawImage(cv,0,y,cv.width,h,0,0,cv.width,h);
+    if(!first)pdf.addPage('a4','portrait');first=false;
+    pdf.addImage(c2.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);
+   }
+  }
+  const name='御見積書_'+e.no+'_'+(e.customer||'')+'.pdf';
+  const blob=pdf.output('blob');const f=new File([blob],name,{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){
+   try{await navigator.share({files:[f],title:name})}catch(er){if(er&&er.name!=='AbortError')throw er}
+  }else{
+   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }
+ }catch(er){alert('PDF作成に失敗しました。「印刷」から保存してください。\n'+(er&&er.message||er))}
+ finally{if(box)box.remove();btn.disabled=false;btn.textContent=old}
+}
 async function loadCloud(){
  const q=await sb.from('quotes').select('id,data').order('quote_date',{ascending:false}).order('no',{ascending:false});
  if(q.error)throw q.error;
@@ -436,7 +472,7 @@ function pagesDetail(e){
 }
 function renderPreview(){
  const e=cur();const pages=state.pv==='detail'?pagesDetail(e):pagesSimple(e);
- $root.innerHTML=`<div class="tb"><button data-a="pvclose">← 戻る</button><button class="pri" data-a="print">PDF保存 / 印刷</button><span class="hint">印刷画面で送信先を「PDFに保存」にしてください(スマホは共有→PDF)</span></div>${pages}`;
+ $root.innerHTML=`<div class="tb"><button data-a="pvclose">← 戻る</button><button class="pri" data-a="pdf">PDFを作る</button><button data-a="print">印刷</button><span class="hint">「PDFを作る」はヘッダー・フッター無しのA4で保存(スマホはこちら)。「印刷」はPCのブラウザ印刷です</span></div>${pages}`;
  $root.style.display='block';$root.scrollTop=0;
 }
 
@@ -473,7 +509,8 @@ document.addEventListener('click',ev=>{
   case 'pv-simple':state.pv='simple';break;
   case 'pv-detail':state.pv='detail';break;
   case 'pvclose':state.pv=null;break;
-  case 'print':{const old=document.title;document.title='御見積書_'+e.no+'_'+(e.customer||'');window.print();setTimeout(()=>document.title=old,500);return}
+  case 'pdf':return makePdf(e);
+ case 'print':{const old=document.title;document.title='御見積書_'+e.no+'_'+(e.customer||'');window.print();setTimeout(()=>document.title=old,500);return}
   case 'stampdel':db.settings.stamp='';break;
   case 'export':{const bl=new Blob([JSON.stringify(db,null,1)],{type:'application/json'});const u=URL.createObjectURL(bl);const l=document.createElement('a');l.href=u;l.download='mitsumori_backup_'+today()+'.json';l.click();URL.revokeObjectURL(u);return}
   default:return;
