@@ -55,15 +55,16 @@ table.list td.r{text-align:right}
 #print-root{display:none;position:fixed;inset:0;background:#8a929c;overflow:auto;z-index:50}
 .tb{position:sticky;top:0;background:#fff;padding:8px 12px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--bd);z-index:2;flex-wrap:wrap}
 .page{width:190mm;min-height:272mm;margin:12px auto;background:#fff;padding:6mm 6mm;box-shadow:0 2px 8px rgba(0,0,0,.3);position:relative;font-size:11pt;color:#000;font-family:"MS PMincho","Hiragino Mincho ProN","Yu Mincho",serif}
-.page h1{text-align:center;letter-spacing:.5em;font-size:24pt;margin:4mm 0 8mm}
+.page h1{text-align:center;letter-spacing:.5em;font-size:22pt;margin:0 0 5mm}
 .page .top{display:flex;justify-content:space-between;gap:8mm}
+.page .tl{flex:1;min-width:0}
 .page .to{font-size:15pt;border-bottom:1px solid #000;padding-bottom:1mm;min-width:80mm;display:inline-block}
 .page .dt{text-align:right;font-size:10pt;line-height:1.6}
 .co{position:relative;font-size:9.5pt;line-height:1.5;min-width:78mm}
 .co .cn{font-size:14pt;font-weight:700}
 .co .stamp{position:absolute;right:0;top:-2mm;width:20mm;height:20mm;object-fit:contain;mix-blend-mode:multiply}
-.amt{border-bottom:2px solid #000;display:inline-block;font-size:16pt;font-weight:700;padding:1mm 4mm 1mm 0;margin:6mm 0 3mm}
-.meta{font-size:10pt;margin:2mm 0 4mm;line-height:1.7}
+.amt{border-bottom:2px solid #000;display:inline-block;font-size:16pt;font-weight:700;padding:1mm 4mm 1mm 0;margin:4mm 0 3mm}
+.meta{font-size:10pt;margin:4mm 0 0;line-height:1.6}
 .meta span.l{display:inline-block;min-width:22mm}
 .page table{width:100%;border-collapse:collapse;font-size:10pt}
 .page th,.page td{border:1px solid #000;padding:1.2mm 2mm;height:7mm}
@@ -385,10 +386,10 @@ function renderSettings(){
 
 /* ---------- 印刷 ---------- */
 function co(){const s=db.settings;return `<div class="co"><div class="cn">${esc(s.company)}</div><div>${esc(s.zip)}</div><div>${esc(s.addr)}</div><div>TEL ${esc(s.tel)}</div><div>${esc(s.rep)}</div>${s.showInvoice&&s.invoiceNo?`<div>登録番号 ${esc(s.invoiceNo)}</div>`:''}${s.stamp?`<img class="stamp" src="${s.stamp}">`:''}</div>`}
-function head(e,c){
+function head(e,c,extra){
  const w=db.settings.wareki;
- return `<h1>御 見 積 書</h1><div class="top"><div><span class="to">${esc(e.customer)||'　　　　　'} ${esc(e.honorific)}</span><p style="font-size:10pt">下記のとおり御見積り申し上げます。</p></div>
- <div><div class="dt">見積番号 ${esc(e.no)}<br>見積日 ${fd(e.date,w)}${e.valid?'<br>有効期限 '+fd(e.valid,w):''}</div><div style="margin-top:3mm">${co()}</div></div></div>`;
+ return `<h1>御 見 積 書</h1><div class="top"><div class="tl"><span class="to">${esc(e.customer)||'　　　　　'} ${esc(e.honorific)}</span><p style="font-size:10pt;margin:2mm 0 0">下記のとおり御見積り申し上げます。</p>${extra||''}</div>
+ <div><div class="dt">見積番号 ${esc(e.no)}<br>見積日 ${fd(e.date,w)}${e.valid?'<br>有効期限 '+fd(e.valid,w):''}</div><div style="margin-top:2mm">${co()}</div></div></div>`;
 }
 function metaHtml(e,pairs){const w=db.settings.wareki;const arr=pairs.filter(p=>p[1]);return arr.length?`<div class="meta">${arr.map(p=>`<div><span class="l">${p[0]}</span>：${esc(p[1])}</div>`).join('')}</div>`:''}
 function headline(e,c){const v=e.taxMode==='incl'?c.total:c.net;return `<div class="amt">御見積金額　${yen(v)}－${e.taxMode==='excl'?'<span style="font-size:10pt;font-weight:400">　(消費税は別途)</span>':'<span style="font-size:10pt;font-weight:400">　(税込)</span>'}</div>`}
@@ -412,7 +413,7 @@ function pagesSimple(e){
   if(r.blank)return '<tr><td></td><td></td><td></td><td></td><td></td></tr>';
   const has=r.show;
   return `<tr><td class="c"></td><td>${esc(r.name)}${r.spec?'　'+esc(r.spec):''}</td><td class="r">${has&&r.q?qfmt(r.q)+' '+esc(r.unit):''}</td><td class="r">${has&&r.p?num(r.p):''}</td><td class="r">${has?num(r.amt):''}</td></tr>`}).join('');
- return `<div class="page">${head(e,c)}${metaHtml(e,[['件名',e.title],['現場名',e.site],['住所',e.address],['工期',e.period],['支払条件',e.payment]])}${headline(e,c)}
+ return `<div class="page">${head(e,c,metaHtml(e,[['件名',e.title],['現場名',e.site],['住所',e.address],['工期',e.period],['支払条件',e.payment]]))}${headline(e,c)}
  <table><thead><tr><th style="width:12mm">符号</th><th>摘　要</th><th style="width:24mm">数量</th><th style="width:26mm">単価</th><th style="width:30mm">金額</th></tr></thead><tbody>${body}</tbody>${totalsFoot(e,c,5)}</table>
  ${e.note?`<div class="note">■備考\n${esc(e.note)}</div>`:''}</div>`;
 }
