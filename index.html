@@ -76,13 +76,14 @@ table.list td.r{text-align:right}
 .page .cover-box{border:1px solid #000;padding:6mm;margin:10mm 0;line-height:2}
 .page .ttl2{text-align:center;font-size:18pt;letter-spacing:.3em;margin:3mm 0 6mm}
 @media print{
- body{background:#fff}
+ html,body{margin:0;background:#fff}
  #app,.no-print,.tb{display:none!important}
  #print-root{position:static;display:block!important;background:#fff;overflow:visible}
- .page{margin:0;box-shadow:none;width:auto;min-height:0;padding:0;page-break-after:always}
+ .page{margin:0;box-shadow:none;width:auto;min-height:0;padding:11mm 14mm;page-break-after:always;box-decoration-break:clone;-webkit-box-decoration-break:clone}
  .page:last-child{page-break-after:auto}
  .page tr{page-break-inside:avoid}
- @page{size:A4;margin:12mm}
+ .page tfoot{display:table-row-group}
+ @page{size:A4;margin:0}
 }
 </style>
 </head>
@@ -370,7 +371,7 @@ function renderSettings(){
  const s=db.settings;
  const f=(k,l,t)=>`<div><label>${l}</label><input data-c="${k}" type="${t||'text'}" value="${esc(s[k])}"></div>`;
  $app.innerHTML=`<div class="bar"><button data-a="back">← 一覧</button><h2 style="margin:0">設定</h2></div>
- <div class="card"><h3>自社情報(見積書に印字)</h3><div class="grid">${f('company','会社名')}${f('zip','郵便番号(〒付き)')}${f('addr','住所')}${f('tel','TEL')}${f('fax','FAX')}${f('rep','代表者')}
+ <div class="card"><h3>自社情報(見積書に印字)</h3><div class="grid">${f('company','会社名')}${f('zip','郵便番号(〒付き)')}${f('addr','住所')}${f('tel','TEL')}${f('rep','代表者')}
  ${f('invoiceNo','インボイス登録番号(T+13桁)')}
  <div><label>登録番号を印字</label><select data-c="showInvoice"><option value="0" ${!s.showInvoice?'selected':''}>しない</option><option value="1" ${s.showInvoice?'selected':''}>する</option></select></div>
  ${f('validDays','有効期限(見積日から何日)','number')}${f('payment','支払条件の初期値')}
@@ -383,7 +384,7 @@ function renderSettings(){
 }
 
 /* ---------- 印刷 ---------- */
-function co(){const s=db.settings;return `<div class="co"><div class="cn">${esc(s.company)}</div><div>${esc(s.zip)}</div><div>${esc(s.addr)}</div><div>TEL ${esc(s.tel)} / FAX ${esc(s.fax)}</div><div>${esc(s.rep)}</div>${s.showInvoice&&s.invoiceNo?`<div>登録番号 ${esc(s.invoiceNo)}</div>`:''}${s.stamp?`<img class="stamp" src="${s.stamp}">`:''}</div>`}
+function co(){const s=db.settings;return `<div class="co"><div class="cn">${esc(s.company)}</div><div>${esc(s.zip)}</div><div>${esc(s.addr)}</div><div>TEL ${esc(s.tel)}</div><div>${esc(s.rep)}</div>${s.showInvoice&&s.invoiceNo?`<div>登録番号 ${esc(s.invoiceNo)}</div>`:''}${s.stamp?`<img class="stamp" src="${s.stamp}">`:''}</div>`}
 function head(e,c){
  const w=db.settings.wareki;
  return `<h1>御 見 積 書</h1><div class="top"><div><span class="to">${esc(e.customer)||'　　　　　'} ${esc(e.honorific)}</span><p style="font-size:10pt">下記のとおり御見積り申し上げます。</p></div>
@@ -402,7 +403,10 @@ function pagesSimple(e){
  const c=calc(e);const multi=e.sections.length>1||(e.sections[0]&&e.sections[0].name);
  let rows=[];
  c.secs.forEach(s=>{if(multi&&s.name)rows.push({h:s.name});s.rows.forEach(r=>{if(r.name||r.show)rows.push(r)})});
- while(rows.length<20)rows.push({blank:1});
+ const metaN=[e.title,e.site,e.address,e.period,e.payment].filter(Boolean).length;
+ const noteN=e.note?Math.ceil(String(e.note).split('\n').length*0.8)+1:0;
+ const minRows=Math.max(8,16-Math.max(0,metaN-2)-noteN);
+ while(rows.length<minRows)rows.push({blank:1});
  const body=rows.map(r=>{
   if(r.h)return `<tr class="hd"><td></td><td colspan="4">${esc(r.h)}</td></tr>`;
   if(r.blank)return '<tr><td></td><td></td><td></td><td></td><td></td></tr>';
