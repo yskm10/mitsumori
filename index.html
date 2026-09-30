@@ -17,7 +17,7 @@ input,select,textarea{font:inherit;padding:8px;border:1px solid var(--bd);border
 textarea{min-height:60px}
 .card{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:14px;margin:12px 0}
 .card h3{margin:0 0 10px;font-size:16px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;align-items:end}
 .grid label{font-size:12px;color:#556;display:block}
 .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .grow{flex:1}
@@ -321,9 +321,10 @@ function renderEdit(){
  ${e.sections.map((s,si)=>secHtml(s,si)).join('')}
  <button data-a="addsec">＋ 工区(大項目)を追加</button>
  <div class="card"><h3>合計</h3>
-  <div class="grid"><div><label>希望の税込合計(入れると税込がジャストになるよう値引きを自動計上)</label><input data-f="targetIncl" inputmode="numeric" value="${esc(e.targetIncl)}" placeholder="例 385000"></div>
+  <div class="grid"><div><label>希望の税込合計</label><input data-f="targetIncl" inputmode="numeric" value="${esc(e.targetIncl)}" placeholder="例 385000"></div>
   <div><label>または 希望の税抜合計</label><input data-f="target" inputmode="numeric" value="${esc(e.target)}" placeholder="例 350000"></div>
   <div><label>値引き行の名称</label><input data-f="discountLabel" value="${esc(e.discountLabel)}"></div></div>
+  <p class="hint" style="margin:6px 0 0">税込(または税抜)の合計を入れると、その金額になるよう差額が値引き行に自動で入ります。どちらか片方だけ入れてください。</p>
   <div id="warn" class="warn"></div>
   <div class="tot" style="margin-top:10px"><div>小計</div><div id="t-sub"></div><div id="l-disc">値引</div><div id="t-disc"></div><div id="l-tax">消費税(10%)</div><div id="t-tax"></div><div class="big">税込合計</div><div class="big" id="t-total"></div></div>
   <div class="internal">社内用(印刷されません) — 原価合計 <b id="t-cost"></b> ／ 粗利 <b id="t-profit"></b>(<span id="t-rate"></span>)</div></div>
