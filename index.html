@@ -95,7 +95,7 @@ const pn=v=>{const s=String(v==null?'':v).replace(/[０-９．]/g,c=>c==='．'?'
 const qfmt=q=>{const r=Math.round(q*100)/100;return r.toLocaleString('ja-JP',{maximumFractionDigits:2})};
 const today=()=>{const d=new Date();return iso(d)};
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-const addDays=(s,n)=>{const d=new Date(s);d.setDate(d.getDate()+n);return iso(d)};
+const addDays=(s,n)=>{const [y,m,d]=s.split('-').map(Number);return iso(new Date(y,m-1,d+n))};
 function fd(s,w){if(!s)return '';const [y,m,d]=s.split('-').map(Number);if(w){const r=y-2018;return '令和'+(r===1?'元':r)+'年'+m+'月'+d+'日'}return y+'年'+m+'月'+d+'日'}
 
 /* ---------- データ ---------- */
@@ -225,8 +225,8 @@ document.addEventListener('visibilitychange',async()=>{
  if(document.visibilityState==='visible'&&sb&&session&&syncState==='ok'&&state.view==='list'&&!state.pv){try{await loadCloud();if(state.view==='list'&&!state.pv)render()}catch(e){}}
 });
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target&&ev.target.id==='lg-p')doLogin()});
-const state={view:'loading',id:null,q:'',filter:'',pv:null};
-const cur=()=>db.estimates.find(x=>x.id===state.id);
+const state={view:'loading',tplId:null,id:null,q:'',filter:'',pv:null};
+const cur=()=>state.view==='tpl'?db.templates.find(t=>t.id===state.tplId):db.estimates.find(x=>x.id===state.id);
 
 function newNo(date,exceptId){const d=(date||today()).replace(/-/g,'');let m=0;db.estimates.forEach(e=>{if(e.id!==exceptId&&e.no&&e.no.length===11&&e.no.startsWith(d))m=Math.max(m,parseInt(e.no.slice(8),10)||0)});return d+String(m+1).padStart(3,'0')}
 function newEstimate(tpl){
@@ -268,6 +268,8 @@ function calc(e){
 
 /* ---------- 画面 ---------- */
 function syncNo(e){if(/^\d{4}-\d{2}-\d{2}$/.test(e.date||'')){const p=e.date.replace(/-/g,'');if(!e.no||e.no.length!==11||!e.no.startsWith(p)){e.no=newNo(e.date,e.id);return true}}return false}
+function applyDate(e,v){e.date=v;syncNo(e);const b=document.getElementById('noBadge');if(b)b.textContent=e.no;
+ if(!e.validManual&&/^\d{4}-\d{2}-\d{2}$/.test(v||'')){e.valid=addDays(v,db.settings.validDays||30);const ve=document.querySelector('[data-f="valid"]');if(ve)ve.value=e.valid}}
 function render(){
  if(db.estimates.map(syncNo).some(Boolean))save();
  if(state.pv){renderPreview();return}
@@ -276,6 +278,7 @@ function render(){
  if(state.view==='loading'){$app.innerHTML='<p style="padding:60px;text-align:center">読み込み中…</p>';return}
  if(state.view==='list')renderList();
  else if(state.view==='edit'&&cur())renderEdit();
+ else if(state.view==='tpl'&&cur())renderTplEdit();
  else if(state.view==='settings')renderSettings();
  else{state.view='list';renderList()}
 }
@@ -343,6 +346,16 @@ function secHtml(s,si){
   <span class="ctl"><button class="sm" data-a="rowup" data-s="${si}" data-r="${ri}">↑</button><button class="sm" data-a="rowdown" data-s="${si}" data-r="${ri}">↓</button><button class="sm dan" data-a="rowdel" data-s="${si}" data-r="${ri}">×</button></span></div>`).join('')}
  <div class="bar" style="margin-top:8px"><button data-a="addrow" data-s="${si}">＋ 行を追加</button><span class="grow"></span><span>工区小計 <b id="sub-${si}"></b></span></div></div>`;
 }
+function renderTplEdit(){
+ const t=cur();
+ $app.innerHTML=`<div class="bar"><button data-a="tplback">← 設定へ</button><h2 style="margin:0">テンプレートの編集</h2>${syncHtml()}</div>
+ <div class="card"><label class="hint">テンプレート名</label><input data-f="name" value="${esc(t.name)}"></div>
+ ${t.sections.map((s,si)=>secHtml(s,si)).join('')}
+ <button data-a="addsec">＋ 工区(大項目)を追加</button>
+ <p class="hint">ここで入れた数量・単価・原価は、このテンプレートから見積を作ったときの初期値になります。</p>
+ <datalist id="units">${['式','m','㎡','個','箇所','台','人工','月','回','本','枚'].map(u=>`<option>${u}</option>`).join('')}</datalist>`;
+ refresh();
+}
 function refresh(){
  const e=cur();if(!e)return;const c=calc(e);
  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
@@ -357,13 +370,13 @@ function renderSettings(){
  <div class="card"><h3>自社情報(見積書に印字)</h3><div class="grid">${f('company','会社名')}${f('zip','郵便番号(〒付き)')}${f('addr','住所')}${f('tel','TEL')}${f('fax','FAX')}${f('rep','代表者')}
  ${f('invoiceNo','インボイス登録番号(T+13桁)')}
  <div><label>登録番号を印字</label><select data-c="showInvoice"><option value="0" ${!s.showInvoice?'selected':''}>しない</option><option value="1" ${s.showInvoice?'selected':''}>する</option></select></div>
- ${f('validDays','有効期限(作成日から何日)','number')}${f('payment','支払条件の初期値')}
+ ${f('validDays','有効期限(見積日から何日)','number')}${f('payment','支払条件の初期値')}
  <div><label>日付表記</label><select data-c="wareki"><option value="0" ${!s.wareki?'selected':''}>西暦</option><option value="1" ${s.wareki?'selected':''}>和暦</option></select></div>
  <div><label>消費税の端数処理(新規見積から適用)</label><select data-c="taxRound"><option value="floor" ${s.taxRound==='floor'?'selected':''}>切捨て</option><option value="ceil" ${s.taxRound==='ceil'?'selected':''}>切上げ</option><option value="round" ${s.taxRound==='round'?'selected':''}>四捨五入</option></select></div></div>
  <div style="margin-top:12px"><label class="hint">社判の画像(透過PNG推奨)</label><input type="file" id="stampf" accept="image/*">${s.stamp?`<div style="margin-top:6px"><img src="${s.stamp}" style="height:60px"> <button class="sm dan" data-a="stampdel">削除</button></div>`:''}</div></div>
  <div class="card"><h3>バックアップ</h3><div class="bar"><button data-a="export">JSONで書き出し</button><label class="hint">読み込み:<input type="file" id="impf" accept="application/json"></label></div>
  <p class="hint">念のため、ときどきJSONで書き出しておくと安心です。読み込みは既存の見積に追加されます(同じ見積を2回読み込むと重複します)。</p></div>
- <div class="card"><h3>テンプレート</h3>${db.templates.map(t=>`<div class="bar" style="margin:4px 0"><span class="grow">${esc(t.name)}</span><button class="sm dan" data-a="tpldel" data-id="${t.id}">削除</button></div>`).join('')||'<span class="hint">なし</span>'}</div>`;
+ <div class="card"><h3>テンプレート</h3>${db.templates.map(t=>`<div class="bar" style="margin:4px 0"><span class="grow">${esc(t.name)}</span><button class="sm" data-a="tpledit" data-id="${t.id}">編集</button><button class="sm dan" data-a="tpldel" data-id="${t.id}">削除</button></div>`).join('')||'<span class="hint">なし</span>'}<div style="margin-top:8px"><button data-a="tplnew">＋ テンプレートを新規作成</button></div><p class="hint">見積の編集画面の「テンプレとして保存」でも追加できます。</p></div>`;
 }
 
 /* ---------- 印刷 ---------- */
@@ -445,7 +458,10 @@ document.addEventListener('click',ev=>{
   case 'rowup':mv(e.sections[si].rows,ri,-1);break;
   case 'rowdown':mv(e.sections[si].rows,ri,1);break;
   case 'savetpl':{const n=prompt('テンプレート名');if(!n)return;db.templates.push({id:uid(),name:n,sections:JSON.parse(JSON.stringify(e.sections)).map(s=>({name:s.name,area:'',rows:s.rows.map(r=>({name:r.name,spec:r.spec,qty:r.qty,unit:r.unit,price:r.price,cost:r.cost}))}))});alert('保存しました');saveNow();return}
-  case 'tpldel':db.templates=db.templates.filter(t=>t.id!==id);break;
+  case 'tpldel':if(!confirm('このテンプレートを削除しますか?'))return;db.templates=db.templates.filter(t=>t.id!==id);break;
+  case 'tpledit':state.tplId=id;state.view='tpl';break;
+  case 'tplnew':{const t={id:uid(),name:'新しいテンプレート',sections:[emptySec()]};db.templates.push(t);state.tplId=t.id;state.view='tpl';break}
+  case 'tplback':state.view='settings';break;
   case 'pv-simple':state.pv='simple';break;
   case 'pv-detail':state.pv='detail';break;
   case 'pvclose':state.pv=null;break;
@@ -462,14 +478,14 @@ document.addEventListener('input',ev=>{
  const e=cur();
  if(t.dataset.f&&e){const f=t.dataset.f;e[f]=t.value;
   if((f==='target'||f==='targetIncl')&&t.value!==''){const o=f==='target'?'targetIncl':'target';e[o]='';const oe=document.querySelector('[data-f="'+o+'"]');if(oe)oe.value=''}
-  if(f==='date'){syncNo(e);const b=document.getElementById('noBadge');if(b)b.textContent=e.no}
+  if(f==='date')applyDate(e,t.value);if(f==='valid')e.validManual=true;
   if(f==='target'||f==='targetIncl'||f==='discountLabel')refresh();save();return}
  if(t.dataset.k&&e){const s=e.sections[+t.dataset.s];if(t.dataset.r!==undefined)s.rows[+t.dataset.r][t.dataset.k]=t.value;else s[t.dataset.k]=t.value;refresh();save();return}
  if(t.dataset.c){const k=t.dataset.c;let v=t.value;if(k==='showInvoice'||k==='wareki')v=v==='1';if(k==='validDays')v=+v||30;db.settings[k]=v;save()}
 });
 document.addEventListener('change',ev=>{
  const t=ev.target;
- if(t.dataset.f==='date'){const e=cur();if(e){e.date=t.value;syncNo(e);const b=document.getElementById('noBadge');if(b)b.textContent=e.no;save()}return}
+ if(t.dataset.f==='date'){const e=cur();if(e){applyDate(e,t.value);save()}return}
  if(t.id==='flt'){state.filter=t.value;renderList();return}
  if(t.dataset.a==='stat'){const x=db.estimates.find(z=>z.id===t.dataset.id);if(x){x.status=t.value;saveNow()}return}
  if(t.id==='stampf'&&t.files[0]){const r=new FileReader();r.onload=()=>{db.settings.stamp=r.result;saveNow();render()};r.readAsDataURL(t.files[0]);return}
