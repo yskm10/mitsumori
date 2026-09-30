@@ -99,6 +99,8 @@ const uid=()=>Math.random().toString(36).slice(2,9);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=n=>Math.round(n).toLocaleString('ja-JP');
 const yen=n=>'¥'+num(n);
+const fmtM=v=>{let x=String(v==null?'':v).replace(/[０-９．－]/g,c=>c==='．'?'.':c==='－'?'-':String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[^\d.\-]/g,'');const neg=x[0]==='-';x=x.replace(/-/g,'');const i=x.indexOf('.');let a=i<0?x:x.slice(0,i),b=i<0?null:x.slice(i+1).replace(/\./g,'');a=a.replace(/^0+(?=\d)/,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');return (neg?'-':'')+a+(b===null?'':'.'+b)};
+const isMoney=t=>t.dataset&&(t.dataset.k==='price'||t.dataset.k==='cost'||t.dataset.f==='target'||t.dataset.f==='targetIncl');
 const pn=v=>{const s=String(v==null?'':v).replace(/[０-９．]/g,c=>c==='．'?'.':String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[,，¥\s]/g,'');return parseFloat(s)||0};
 const qfmt=q=>{const r=Math.round(q*100)/100;return r.toLocaleString('ja-JP',{maximumFractionDigits:2})};
 const today=()=>{const d=new Date();return iso(d)};
@@ -359,8 +361,8 @@ function renderEdit(){
  ${e.sections.map((s,si)=>secHtml(s,si)).join('')}
  <button data-a="addsec">＋ 工区(大項目)を追加</button>
  <div class="card"><h3>合計</h3>
-  <div class="grid"><div><label>希望の税込合計</label><input data-f="targetIncl" inputmode="numeric" value="${esc(e.targetIncl)}" placeholder="例 385000"></div>
-  <div><label>または 希望の税抜合計</label><input data-f="target" inputmode="numeric" value="${esc(e.target)}" placeholder="例 350000"></div>
+  <div class="grid"><div><label>希望の税込合計</label><input data-f="targetIncl" inputmode="decimal" value="${esc(fmtM(e.targetIncl))}" placeholder="例 385000"></div>
+  <div><label>または 希望の税抜合計</label><input data-f="target" inputmode="decimal" value="${esc(fmtM(e.target))}" placeholder="例 350000"></div>
   <div><label>値引き行の名称</label><input data-f="discountLabel" value="${esc(e.discountLabel)}"></div></div>
   <p class="hint" style="margin:6px 0 0">税込(または税抜)の合計を入れると、その金額になるよう差額が値引き行に自動で入ります。どちらか片方だけ入れてください。</p>
   <div id="warn" class="warn"></div>
@@ -381,9 +383,9 @@ function secHtml(s,si){
   <input data-s="${si}" data-r="${ri}" data-k="spec" placeholder="規格" value="${esc(r.spec)}">
   <input data-s="${si}" data-r="${ri}" data-k="qty" placeholder="数量(=area可)" value="${esc(r.qty)}">
   <input data-s="${si}" data-r="${ri}" data-k="unit" list="units" placeholder="単位" value="${esc(r.unit)}">
-  <input data-s="${si}" data-r="${ri}" data-k="price" inputmode="numeric" placeholder="単価" value="${esc(r.price)}">
+  <input data-s="${si}" data-r="${ri}" data-k="price" inputmode="decimal" placeholder="単価" value="${esc(fmtM(r.price))}">
   <span class="a" id="amt-${si}-${ri}">0</span>
-  <input data-s="${si}" data-r="${ri}" data-k="cost" inputmode="numeric" placeholder="原価" value="${esc(r.cost)}">
+  <input data-s="${si}" data-r="${ri}" data-k="cost" inputmode="decimal" placeholder="原価" value="${esc(fmtM(r.cost))}">
   <span class="ctl"><button class="sm" data-a="rowup" data-s="${si}" data-r="${ri}">↑</button><button class="sm" data-a="rowdown" data-s="${si}" data-r="${ri}">↓</button><button class="sm dan" data-a="rowdel" data-s="${si}" data-r="${ri}">×</button></span></div>`).join('')}
  <div class="bar" style="margin-top:8px"><button data-a="addrow" data-s="${si}">＋ 行を追加</button><span class="grow"></span><span>工区小計 <b id="sub-${si}"></b></span></div></div>`;
 }
@@ -520,6 +522,7 @@ document.addEventListener('click',ev=>{
 document.addEventListener('input',ev=>{
  const t=ev.target;
  if(t.id==='q'){state.q=t.value;renderList();const q=document.getElementById('q');q.focus();q.setSelectionRange(q.value.length,q.value.length);return}
+ if(isMoney(t)){const pos=t.selectionStart,before=t.value.slice(0,pos).replace(/[^\d]/g,'').length,nv=fmtM(t.value);if(nv!==t.value){t.value=nv;let c=0,np=0;while(np<nv.length&&c<before){if(/\d/.test(nv[np]))c++;np++}try{t.setSelectionRange(np,np)}catch(x){}}}
  const e=cur();
  if(t.dataset.f&&e){const f=t.dataset.f;e[f]=t.value;
   if((f==='target'||f==='targetIncl')&&t.value!==''){const o=f==='target'?'targetIncl':'target';e[o]='';const oe=document.querySelector('[data-f="'+o+'"]');if(oe)oe.value=''}
