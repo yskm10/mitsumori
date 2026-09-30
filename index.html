@@ -37,6 +37,12 @@ table.list{width:100%;border-collapse:collapse;background:#fff}
 table.list th,table.list td{padding:8px;border-bottom:1px solid var(--bd);text-align:left;font-size:14px}
 table.list td.r{text-align:right}
 .hint{font-size:12px;color:#667}
+.qc{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0;display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:start}
+.qt{cursor:pointer;min-width:0}
+.qn{font-weight:700;font-size:16px;word-break:break-all}
+.qamt{font-size:18px;font-weight:700;text-align:right;white-space:nowrap}
+.qf{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.qf select{width:auto}
 @media(max-width:760px){
  .row{grid-template-columns:1fr 1fr 1fr;border-top:1px dashed var(--bd);padding-top:8px}
  .row .n{grid-column:1/-1}
@@ -294,11 +300,7 @@ function renderList(){
  <div class="card"><div class="grid">
   <div><label>検索(番号・宛名・件名・現場)</label><input id="q" value="${esc(state.q)}"></div>
   <div><label>ステータス</label><select id="flt"><option value="">すべて</option>${STAT.map(s=>`<option ${f===s?'selected':''}>${s}</option>`).join('')}</select></div></div></div>
- <table class="list"><thead><tr><th>番号</th><th class="hm">日付</th><th>宛名 / 件名</th><th class="r" style="text-align:right">税込合計</th><th>状態</th><th></th></tr></thead><tbody>
- ${list.map(e=>{const c=calc(e);return `<tr><td>${esc(e.no)}</td><td class="hm">${esc(e.date)}</td><td><b>${esc(e.customer)||'(宛名未入力)'}</b><br><span class="hint">${esc(e.title)}</span></td><td class="r">${yen(c.total)}</td>
- <td><select data-a="stat" data-id="${e.id}">${STAT.map(s=>`<option ${e.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
- <td><div class="ctl"><button class="sm" data-a="open" data-id="${e.id}">開く</button><button class="sm" data-a="dup" data-id="${e.id}">複製</button><button class="sm dan" data-a="del" data-id="${e.id}">削除</button></div></td></tr>`}).join('')||'<tr><td colspan="6" class="hint">見積がありません。「新規見積」から作成してください。</td></tr>'}
- </tbody></table>
+ <div class="qlist">${list.map(e=>{const c=calc(e);return `<div class="qc"><div class="qt" data-a="open" data-id="${e.id}"><div class="qn">${esc(e.customer)||'(宛名未入力)'}</div><div class="hint">${esc(e.title)||'　'}</div><div class="hint">${esc(e.no)} ・ ${esc(e.date)}</div></div><div class="qamt">${yen(c.total)}<div class="hint" style="font-weight:400">税込</div></div><div class="qf"><select data-a="stat" data-id="${e.id}">${STAT.map(s=>`<option ${e.status===s?'selected':''}>${s}</option>`).join('')}</select><span class="grow"></span><button class="sm" data-a="open" data-id="${e.id}">開く</button><button class="sm" data-a="dup" data-id="${e.id}">複製</button><button class="sm dan" data-a="del" data-id="${e.id}">削除</button></div></div>`}).join('')||'<p class="hint">見積がありません。「新規見積」から作成してください。</p>'}</div>
  <p class="hint">データはクラウド(Supabase)に自動保存され、ログインすればPC・スマホどちらでも同じ見積が見られます。</p>`;
 }
 function fld(k,l,t,ph){const e=cur();return `<div><label>${l}</label><input data-f="${k}" type="${t||'text'}" value="${esc(e[k])}" placeholder="${ph||''}"></div>`}
