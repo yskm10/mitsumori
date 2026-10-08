@@ -74,6 +74,7 @@ table.list td.r{text-align:right}
 .page tr.hd td{font-weight:700;background:#f6f6f6}
 .page tfoot td{font-weight:600}
 .page .note{margin-top:4mm;font-size:9.5pt;white-space:pre-wrap}
+.page .bank{border:1px solid #000;padding:3mm 4mm;margin-top:4mm;font-size:10.5pt;line-height:1.7;white-space:pre-wrap}
 .page .cover-box{border:1px solid #000;padding:6mm;margin:10mm 0;line-height:2}
 .page .ttl2{text-align:center;font-size:18pt;letter-spacing:.3em;margin:3mm 0 6mm}
 @media print{
@@ -112,7 +113,7 @@ function fd(s,w){if(!s)return '';const [y,m,d]=s.split('-').map(Number);if(w){co
 const emptyRow=()=>({id:uid(),name:'',spec:'',qty:'1',unit:'式',price:'',cost:''});
 const emptySec=()=>({id:uid(),name:'',area:'',rows:[emptyRow(),emptyRow(),emptyRow(),emptyRow(),emptyRow()]});
 const defaultDB=()=>({
- settings:{company:'株式会社メディコム',zip:'〒530-0026',addr:'大阪府大阪市北区神山町14-3 アド神山ビル6F',tel:'06-6360-9601',fax:'06-6360-9602',rep:'代表取締役 森 雄介',invoiceNo:'',showInvoice:false,stamp:'',validDays:30,wareki:false,payment:'',taxRound:'floor'},
+ settings:{company:'株式会社メディコム',zip:'〒530-0026',addr:'大阪府大阪市北区神山町14-3 アド神山ビル6F',tel:'06-6360-9601',fax:'06-6360-9602',rep:'代表取締役 森 雄介',invoiceNo:'',showInvoice:false,stamp:'',validDays:30,wareki:false,payment:'',taxRound:'floor',bank:'',dueMode:'nextEom',dueDays:30},
  estimates:[],
  templates:[
   {id:uid(),name:'蓄電池設置工事',sections:[{name:'',area:'',rows:[
@@ -193,7 +194,7 @@ async function makePdf(e){
     pdf.addImage(c2.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);
    }
   }
-  const name='御見積書_'+e.no+'_'+(e.customer||'')+'.pdf';
+  const name=(state.pv==='invoice'?'御請求書_':'御見積書_')+e.no+'_'+(e.customer||'')+'.pdf';
   const blob=pdf.output('blob');const f=new File([blob],name,{type:'application/pdf'});
   if(navigator.canShare&&navigator.canShare({files:[f]})){
    try{await navigator.share({files:[f],title:name})}catch(er){if(er&&er.name!=='AbortError')throw er}
@@ -328,7 +329,9 @@ function render(){
  else if(state.view==='settings')renderSettings();
  else{state.view='list';renderList()}
 }
-const STAT=['作成中','提出済','受注','失注'];
+const STAT=['作成中','提出済','受注','請求済','入金済','失注'];
+function dueFrom(d,s){if(!/^\d{4}-\d{2}-\d{2}$/.test(d||''))return '';const [y,m]=d.split('-').map(Number);const md=s.dueMode||'nextEom';if(md==='days')return addDays(d,+s.dueDays||30);return iso(new Date(y,m+(md==='curEom'?0:1),0))}
+function invFill(e){if(!e.invDate)e.invDate=today();if(!e.invDue){e.invDue=dueFrom(e.invDate,db.settings);e.invDueManual=false}}
 function renderList(){
  const q=state.q.trim(),f=state.filter;
  const list=db.estimates.filter(e=>(!f||e.status===f)&&(!q||(e.no+e.customer+e.title+e.site).includes(q)));
@@ -348,7 +351,7 @@ function renderEdit(){
  const e=cur();
  $app.innerHTML=`
  <div class="bar"><button data-a="back">← 一覧</button><span class="badge" id="noBadge">${esc(e.no)}</span>${syncHtml()}<span class="grow"></span>
-  <button class="pri" data-a="pv-simple">PDF:簡易版</button><button class="pri" data-a="pv-detail">PDF:詳細版</button></div>
+  <button class="pri" data-a="pv-simple">PDF:簡易版</button><button class="pri" data-a="pv-detail">PDF:詳細版</button><button class="pri" data-a="pv-invoice">PDF:請求書</button></div>
  <div class="card"><h3>基本情報</h3><div class="grid">
   ${fld('customer','宛名(取引先)')}
   <div><label>敬称</label><select data-f="honorific">${['御中','様'].map(h=>`<option ${e.honorific===h?'selected':''}>${h}</option>`).join('')}</select></div>
@@ -368,8 +371,11 @@ function renderEdit(){
   <div id="warn" class="warn"></div>
   <div class="tot" style="margin-top:10px"><div>小計</div><div id="t-sub"></div><div id="l-disc">値引</div><div id="t-disc"></div><div id="l-tax">消費税(10%)</div><div id="t-tax"></div><div class="big">税込合計</div><div class="big" id="t-total"></div></div>
   <div class="internal">社内用(印刷されません) — 原価合計 <b id="t-cost"></b> ／ 粗利 <b id="t-profit"></b>(<span id="t-rate"></span>)</div></div>
+ <div class="card"><h3>請求書</h3><div class="grid">${fld('invDate','請求日','date')}${fld('invDue','入金期限','date')}${fld('invWork','取引日(工事完了日など。空なら工期)')}</div>
+  <div style="margin-top:10px"><label class="hint">請求書の備考(PDFに印字)</label><textarea data-f="invNote">${esc(e.invNote)}</textarea></div>
+  <p class="hint" style="margin:6px 0 0">請求日・入金期限は「PDF:請求書」を開いたときに自動で入ります(入金期限の決め方は設定画面)。振込先も設定画面で登録します。${db.settings.bank?'':'<b style="color:#b00">振込先が未登録です。</b>'}${db.settings.showInvoice&&db.settings.invoiceNo?'':'登録番号は印字されません。'}</p></div>
  <div class="card"><label class="hint">備考(PDFに印字)</label><textarea data-f="note">${esc(e.note)}</textarea></div>
- <div class="bar"><button data-a="pv-simple" class="pri">PDF:簡易版</button><button data-a="pv-detail" class="pri">PDF:詳細版</button><button data-a="dup" data-id="${e.id}">複製</button><button data-a="savetpl">テンプレとして保存</button><span class="grow"></span><button class="dan" data-a="del" data-id="${e.id}">この見積を削除</button></div>
+ <div class="bar"><button data-a="pv-simple" class="pri">PDF:簡易版</button><button data-a="pv-detail" class="pri">PDF:詳細版</button><button data-a="pv-invoice" class="pri">PDF:請求書</button><button data-a="dup" data-id="${e.id}">複製</button><button data-a="savetpl">テンプレとして保存</button><span class="grow"></span><button class="dan" data-a="del" data-id="${e.id}">この見積を削除</button></div>
  <datalist id="units">${['式','m','㎡','個','箇所','台','人工','月','回','本','枚'].map(u=>`<option>${u}</option>`).join('')}</datalist>`;
  refresh();
 }
@@ -417,6 +423,10 @@ function renderSettings(){
  <div><label>日付表記</label><select data-c="wareki"><option value="0" ${!s.wareki?'selected':''}>西暦</option><option value="1" ${s.wareki?'selected':''}>和暦</option></select></div>
  <div><label>消費税の端数処理(新規見積から適用)</label><select data-c="taxRound"><option value="floor" ${s.taxRound==='floor'?'selected':''}>切捨て</option><option value="ceil" ${s.taxRound==='ceil'?'selected':''}>切上げ</option><option value="round" ${s.taxRound==='round'?'selected':''}>四捨五入</option></select></div></div>
  <div style="margin-top:12px"><label class="hint">社判の画像(透過PNG推奨)</label><input type="file" id="stampf" accept="image/*">${s.stamp?`<div style="margin-top:6px"><img src="${s.stamp}" style="height:60px"> <button class="sm dan" data-a="stampdel">削除</button></div>`:''}</div></div>
+ <div class="card"><h3>請求書</h3><div class="grid">
+ <div><label>入金期限の決め方</label><select data-c="dueMode"><option value="nextEom" ${(s.dueMode||'nextEom')==='nextEom'?'selected':''}>請求日の翌月末</option><option value="curEom" ${s.dueMode==='curEom'?'selected':''}>請求日の当月末</option><option value="days" ${s.dueMode==='days'?'selected':''}>請求日から○日後</option></select></div>
+ ${f('dueDays','「○日後」の日数','number')}</div>
+ <div style="margin-top:10px"><label class="hint">振込先(請求書にそのまま印字。改行できます)</label><textarea data-c="bank" placeholder="例&#10;○○銀行 △△支店 普通 1234567&#10;口座名義 カ)メディコム">${esc(s.bank)}</textarea></div></div>
  <div class="card"><h3>バックアップ</h3><div class="bar"><button data-a="export">JSONで書き出し</button><label class="hint">読み込み:<input type="file" id="impf" accept="application/json"></label></div>
  <p class="hint">念のため、ときどきJSONで書き出しておくと安心です。読み込みは既存の見積に追加されます(同じ見積を2回読み込むと重複します)。</p></div>
  <div class="card"><h3>テンプレート</h3>${db.templates.map(t=>`<div class="bar" style="margin:4px 0"><span class="grow">${esc(t.name)}</span><button class="sm" data-a="tpledit" data-id="${t.id}">編集</button><button class="sm dan" data-a="tpldel" data-id="${t.id}">削除</button></div>`).join('')||'<span class="hint">なし</span>'}<div style="margin-top:8px"><button data-a="tplnew">＋ テンプレートを新規作成</button></div><p class="hint">見積の編集画面の「テンプレとして保存」でも追加できます。</p></div>`;
@@ -424,26 +434,28 @@ function renderSettings(){
 
 /* ---------- 印刷 ---------- */
 function co(){const s=db.settings;return `<div class="co"><div class="cn">${esc(s.company)}</div><div>${esc(s.zip)}</div><div>${esc(s.addr)}</div><div>TEL ${esc(s.tel)}</div><div>${esc(s.rep)}</div>${s.showInvoice&&s.invoiceNo?`<div>登録番号 ${esc(s.invoiceNo)}</div>`:''}${s.stamp?`<img class="stamp" src="${s.stamp}">`:''}</div>`}
-function head(e,c,extra){
+function head(e,c,extra,inv){
  const w=db.settings.wareki;
- return `<h1>御 見 積 書</h1><div class="top"><div class="tl"><span class="to">${esc(e.customer)||'　　　　　'} ${esc(e.honorific)}</span><p style="font-size:10pt;margin:2mm 0 0">下記のとおり御見積り申し上げます。</p>${extra||''}</div>
- <div><div class="dt">見積番号 ${esc(e.no)}<br>見積日 ${fd(e.date,w)}${e.valid?'<br>有効期限 '+fd(e.valid,w):''}</div><div style="margin-top:2mm">${co()}</div></div></div>`;
+ return `<h1>${inv?'御 請 求 書':'御 見 積 書'}</h1><div class="top"><div class="tl"><span class="to">${esc(e.customer)||'　　　　　'} ${esc(e.honorific)}</span><p style="font-size:10pt;margin:2mm 0 0">${inv?'下記のとおりご請求申し上げます。':'下記のとおり御見積り申し上げます。'}</p>${extra||''}</div>
+ <div><div class="dt">${inv?'請求番号 '+esc(e.no)+'<br>請求日 '+fd(e.invDate,w):'見積番号 '+esc(e.no)+'<br>見積日 '+fd(e.date,w)+(e.valid?'<br>有効期限 '+fd(e.valid,w):'')}</div><div style="margin-top:2mm">${co()}</div></div></div>`;
 }
 function metaHtml(e,pairs){const w=db.settings.wareki;const arr=pairs.filter(p=>p[1]);return arr.length?`<div class="meta">${arr.map(p=>`<div><span class="l">${p[0]}</span>：${esc(p[1])}</div>`).join('')}</div>`:''}
-function headline(e,c){const v=e.taxMode==='incl'?c.total:c.net;return `<div class="amt">御見積金額　${yen(v)}－${e.taxMode==='excl'?'<span style="font-size:10pt;font-weight:400">　(消費税は別途)</span>':'<span style="font-size:10pt;font-weight:400">　(税込)</span>'}</div>`}
-function totalsFoot(e,c,cols){
+function headline(e,c,inv){if(inv)return `<div class="amt">ご請求金額　${yen(c.total)}－<span style="font-size:10pt;font-weight:400">　(税込)</span></div>`;const v=e.taxMode==='incl'?c.total:c.net;return `<div class="amt">御見積金額　${yen(v)}－${e.taxMode==='excl'?'<span style="font-size:10pt;font-weight:400">　(消費税は別途)</span>':'<span style="font-size:10pt;font-weight:400">　(税込)</span>'}</div>`}
+function totalsFoot(e,c,cols,inv){
  const L=(l,v,b)=>`<tr><td colspan="${cols-1}" class="r" style="text-align:right">${l}</td><td class="r">${v}</td></tr>`;
  let h=L('小計',yen(c.sub));
  if(c.disc)h+=L(esc(e.discountLabel||'値引'),'−'+yen(c.disc));
- if(e.taxMode==='incl'){h+=L('消費税(10%)',yen(c.tax));h+=L('合　計',yen(c.total))}else h+=L('合計(税別)',yen(c.net));
+ if(inv){h+=L('消費税(10%対象 '+yen(c.net)+')',yen(c.tax));h+=L('ご請求額(税込)',yen(c.total))}else if(e.taxMode==='incl'){h+=L('消費税(10%)',yen(c.tax));h+=L('合　計',yen(c.total))}else h+=L('合計(税別)',yen(c.net));
  return `<tfoot>${h}</tfoot>`;
 }
-function pagesSimple(e){
+function pagesSimple(e,inv){
  const c=calc(e);const multi=e.sections.length>1||(e.sections[0]&&e.sections[0].name);
  let rows=[];
  c.secs.forEach(s=>{if(multi&&s.name)rows.push({h:s.name});s.rows.forEach(r=>{if(r.name||r.show)rows.push(r)})});
- const metaN=[e.title,e.site,e.address,e.period,e.payment].filter(Boolean).length;
- const noteN=e.note?Math.ceil(String(e.note).split('\n').length*0.8)+1:0;
+ const bankT=inv?(db.settings.bank||''):'';const noteT=inv?e.invNote:e.note;
+ const metaP=inv?[['件名',e.title],['現場名',e.site],['住所',e.address],['取引日',e.invWork||e.period],['入金期限',fd(e.invDue,db.settings.wareki)]]:[['件名',e.title],['現場名',e.site],['住所',e.address],['工期',e.period],['支払条件',e.payment]];
+ const metaN=metaP.filter(p=>p[1]).length;
+ const noteN=(noteT?Math.ceil(String(noteT).split('\n').length*0.8)+1:0)+(inv?Math.ceil(String(bankT||' ').split('\n').length*0.9)+3:0);
  const minRows=Math.max(8,16-Math.max(0,metaN-2)-noteN);
  while(rows.length<minRows)rows.push({blank:1});
  const body=rows.map(r=>{
@@ -451,9 +463,9 @@ function pagesSimple(e){
   if(r.blank)return '<tr><td></td><td></td><td></td><td></td><td></td></tr>';
   const has=r.show;
   return `<tr><td class="c"></td><td>${esc(r.name)}${r.spec?'　'+esc(r.spec):''}</td><td class="r">${has&&r.q?qfmt(r.q)+' '+esc(r.unit):''}</td><td class="r">${has&&r.p?num(r.p):''}</td><td class="r">${has?num(r.amt):''}</td></tr>`}).join('');
- return `<div class="page">${head(e,c,metaHtml(e,[['件名',e.title],['現場名',e.site],['住所',e.address],['工期',e.period],['支払条件',e.payment]]))}${headline(e,c)}
- <table><thead><tr><th style="width:12mm">符号</th><th>摘　要</th><th style="width:24mm">数量</th><th style="width:26mm">単価</th><th style="width:30mm">金額</th></tr></thead><tbody>${body}</tbody>${totalsFoot(e,c,5)}</table>
- ${e.note?`<div class="note">■備考\n${esc(e.note)}</div>`:''}</div>`;
+ return `<div class="page">${head(e,c,metaHtml(e,metaP),inv)}${headline(e,c,inv)}
+ <table><thead><tr><th style="width:12mm">符号</th><th>摘　要</th><th style="width:24mm">数量</th><th style="width:26mm">単価</th><th style="width:30mm">金額</th></tr></thead><tbody>${body}</tbody>${totalsFoot(e,c,5,inv)}</table>
+ ${inv?`<div class="bank"><b>お振込先</b>　(入金期限 ${fd(e.invDue,db.settings.wareki)})\n${bankT?esc(bankT):'(設定画面で振込先を登録してください)'}</div>`:''}${noteT?`<div class="note">■備考\n${esc(noteT)}</div>`:''}</div>`;
 }
 function pagesDetail(e){
  const c=calc(e),w=db.settings.wareki;const L=i=>String.fromCharCode(65+i)+'.';
@@ -473,7 +485,7 @@ function pagesDetail(e){
  return cover+summary+det;
 }
 function renderPreview(){
- const e=cur();const pages=state.pv==='detail'?pagesDetail(e):pagesSimple(e);
+ const e=cur();const pages=state.pv==='detail'?pagesDetail(e):pagesSimple(e,state.pv==='invoice');
  $root.innerHTML=`<div class="tb"><button data-a="pvclose">← 戻る</button><button class="pri" data-a="pdf">PDFを作る</button><button data-a="print">印刷</button><span class="hint">「PDFを作る」はヘッダー・フッター無しのA4で保存(スマホはこちら)。「印刷」はPCのブラウザ印刷です</span></div>${pages}`;
  $root.style.display='block';$root.scrollTop=0;
 }
@@ -493,7 +505,7 @@ document.addEventListener('click',ev=>{
   case 'settings':state.view='settings';break;
   case 'back':state.view='list';break;
   case 'open':state.id=id;state.view='edit';break;
-  case 'dup':{const s=db.estimates.find(x=>x.id===id);if(!s)return;const t=today();const c=JSON.parse(JSON.stringify(s));c.id=newId();c.no=newNo(t);c.date=t;c.valid=addDays(t,db.settings.validDays||30);c.status='作成中';c.sections.forEach(x=>{x.id=uid();x.rows.forEach(r=>r.id=uid())});db.estimates.unshift(c);state.id=c.id;state.view='edit';break}
+  case 'dup':{const s=db.estimates.find(x=>x.id===id);if(!s)return;const t=today();const c=JSON.parse(JSON.stringify(s));c.id=newId();c.no=newNo(t);c.date=t;c.valid=addDays(t,db.settings.validDays||30);c.status='作成中';delete c.invDate;delete c.invDue;delete c.invDueManual;delete c.invWork;delete c.invNote;c.sections.forEach(x=>{x.id=uid();x.rows.forEach(r=>r.id=uid())});db.estimates.unshift(c);state.id=c.id;state.view='edit';break}
   case 'del':if(!confirm('削除しますか?'))return;pendingDel.add(id);db.estimates=db.estimates.filter(x=>x.id!==id);state.view='list';break;
   case 'addsec':e.sections.push(emptySec());break;
   case 'secdel':if(e.sections.length<2){alert('工区は最低1つ必要です');return}if(!confirm('この工区を削除しますか?'))return;e.sections.splice(si,1);break;
@@ -510,9 +522,10 @@ document.addEventListener('click',ev=>{
   case 'tplback':state.view='settings';break;
   case 'pv-simple':state.pv='simple';break;
   case 'pv-detail':state.pv='detail';break;
+  case 'pv-invoice':invFill(e);state.pv='invoice';break;
   case 'pvclose':state.pv=null;break;
   case 'pdf':return makePdf(e);
- case 'print':{const old=document.title;document.title='御見積書_'+e.no+'_'+(e.customer||'');window.print();setTimeout(()=>document.title=old,500);return}
+ case 'print':{const old=document.title;document.title=(state.pv==='invoice'?'御請求書_':'御見積書_')+e.no+'_'+(e.customer||'');window.print();setTimeout(()=>document.title=old,500);return}
   case 'stampdel':db.settings.stamp='';break;
   case 'export':{const bl=new Blob([JSON.stringify(db,null,1)],{type:'application/json'});const u=URL.createObjectURL(bl);const l=document.createElement('a');l.href=u;l.download='mitsumori_backup_'+today()+'.json';l.click();URL.revokeObjectURL(u);return}
   default:return;
@@ -526,10 +539,10 @@ document.addEventListener('input',ev=>{
  const e=cur();
  if(t.dataset.f&&e){const f=t.dataset.f;e[f]=t.value;
   if((f==='target'||f==='targetIncl')&&t.value!==''){const o=f==='target'?'targetIncl':'target';e[o]='';const oe=document.querySelector('[data-f="'+o+'"]');if(oe)oe.value=''}
-  if(f==='date')applyDate(e,t.value);if(f==='valid')e.validManual=true;
+  if(f==='date')applyDate(e,t.value);if(f==='valid')e.validManual=true;if(f==='invDate'&&!e.invDueManual){e.invDue=dueFrom(t.value,db.settings);const de=document.querySelector('[data-f="invDue"]');if(de)de.value=e.invDue}if(f==='invDue')e.invDueManual=true;
   if(f==='target'||f==='targetIncl'||f==='discountLabel')refresh();save();return}
  if(t.dataset.k&&e){const s=e.sections[+t.dataset.s];if(t.dataset.r!==undefined)s.rows[+t.dataset.r][t.dataset.k]=t.value;else s[t.dataset.k]=t.value;refresh();save();return}
- if(t.dataset.c){const k=t.dataset.c;let v=t.value;if(k==='showInvoice'||k==='wareki')v=v==='1';if(k==='validDays')v=+v||30;db.settings[k]=v;save()}
+ if(t.dataset.c){const k=t.dataset.c;let v=t.value;if(k==='showInvoice'||k==='wareki')v=v==='1';if(k==='validDays'||k==='dueDays')v=+v||30;db.settings[k]=v;save()}
 });
 document.addEventListener('change',ev=>{
  const t=ev.target;
